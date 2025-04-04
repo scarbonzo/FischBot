@@ -19,16 +19,26 @@ class FischBot:
         self.hooked = False
         self.last_click_time = 0
         self.space_held = False  # Track if space is currently held down
+        self.last_space_press = 0  # Track last time space was pressed for pulsing
+        self.space_state = False  # Track whether we're in the hold or release phase
+        self.hold_duration = 0.35  # Duration to hold space
+        self.release_duration = 0.35  # Duration to release space
         # Load the template images
         self.shake_template = cv2.imread('Shake.png')
         self.hooked_template = cv2.imread('Hooked.png')
         self.fish_template = cv2.imread('Fish1.png')
+        self.bar_bad_template = cv2.imread('BarBad.png')
+        self.bar_good_template = cv2.imread('BarGood.png')
         if self.shake_template is None:
             raise FileNotFoundError("Shake.png not found. Please make sure the image is in the same directory as the script.")
         if self.hooked_template is None:
             raise FileNotFoundError("Hooked.png not found. Please make sure the image is in the same directory as the script.")
         if self.fish_template is None:
             raise FileNotFoundError("Fish1.png not found. Please make sure the image is in the same directory as the script.")
+        if self.bar_bad_template is None:
+            raise FileNotFoundError("BarBad.png not found. Please make sure the image is in the same directory as the script.")
+        if self.bar_good_template is None:
+            raise FileNotFoundError("BarGood.png not found. Please make sure the image is in the same directory as the script.")
         
     def start(self):
         """Start the bot"""
@@ -131,21 +141,55 @@ class FischBot:
             
             # Calculate position relative to center
             relative_x = fish_x - screen_center
-            print(f"Fish position relative to center: {relative_x}px")
+            #print(f"Fish position relative to center: {relative_x}px")
+            
+            # Detect bar color
+            bar_bad_result = cv2.matchTemplate(bottom_region, self.bar_bad_template, cv2.TM_CCOEFF_NORMED)
+            bad_min_val, bad_max_val, bad_min_loc, bad_max_loc = cv2.minMaxLoc(bar_bad_result)
+            
+            # Log confidence level
+            print(f"Bad bar detection confidence: {bad_max_val:.3f}")
+            
+            # Determine bar type and position
+            if bad_max_val < 0.8:
+                bar_x = bad_max_loc[0] + self.bar_bad_template.shape[1] // 2  # Get center of bar
+                bar_type = "BAD"
+            else:
+                # If bad bar not found, assume it's a good bar and use the same position logic
+                bar_x = screen_center  # Use screen center as bar position for good bar
+                bar_type = "GOOD"
+            
+            
+            # Calculate fish position relative to bar
+            fish_to_bar = fish_x - bar_x
+            print(f"Fish is {abs(fish_to_bar)}px {'right' if fish_to_bar > 0 else 'left'} of {bar_type} bar")
             
             # If fish is more than 200px from the right of center, hold space
-            if relative_x >= 0:
-                print("Fish is at or right of center, holding space...")
-                pydirectinput.keyDown('space')
-                self.space_held = True
+            if relative_x >= 175:
+                if not self.space_held:
+                    pydirectinput.keyDown('space')
+                    self.space_held = True
+            elif -175 <= relative_x < 175:
+                current_time = time.time()
+                interval = self.hold_duration if self.space_state else self.release_duration
+                if current_time - self.last_space_press >= interval:
+                    if self.space_state:
+                        # Release space after holding
+                        pydirectinput.keyUp('space')
+                        self.space_held = False
+                    else:
+                        # Hold space
+                        pydirectinput.keyDown('space')
+                        self.space_held = True
+                    self.space_state = not self.space_state  # Toggle state
+                    self.last_space_press = current_time
             else:
                 if self.space_held:
-                    print("Fish is left of center, releasing space...")
                     pydirectinput.keyUp('space')
                     self.space_held = False
         else:
             if self.space_held:
-                print("No fish detected, releasing space...")
+                #print("No fish detected, releasing space...")
                 pydirectinput.keyUp('space')  # Make sure to release space
                 self.space_held = False
             self.reset_state()
