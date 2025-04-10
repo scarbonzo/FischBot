@@ -100,7 +100,7 @@ class FischBot:
                     self.reset_state()
             
             # Small delay to prevent high CPU usage and allow time for screen updates
-            time.sleep(0.05) 
+            time.sleep(0.25) 
 
     def cast_line(self):
         """Cast the fishing line by holding left click for 0.5 seconds"""
@@ -264,11 +264,11 @@ class FischBot:
             #print(f"Fish relative to screen center: {relative_x}px")
 
             # --- Keep the existing spacebar control logic based on relative_x ---
-            if relative_x >= 125:
+            if relative_x >= 100:
                 print(f"HOLDING @ {relative_x}px")
                 pydirectinput.keyDown('space')
                 self.space_held = True
-            elif -175 <= relative_x < 125:
+            elif -100 <= relative_x < 100:
                 print(f"PULSING @ {relative_x}px")
                 current_time = time.time()
                 interval = self.hold_duration if self.space_state else self.release_duration
